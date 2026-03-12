@@ -56,4 +56,4 @@ torchrun --nproc_per_node ${NUM_GPUS} --nnodes 1 \
         -s training.batch_size_per_gpu 1 -s training.dataset_path $DATAPATH \
         -s training.num_views ${NUM_TOTAL_VIEWS} -s training.num_input_views ${NUM_VIEWS} -s training.num_target_views ${NUM_VIEWS} -s training.num_virtual_views ${NUM_VIEWS} \
         -s training.checkpoint_dir ./checkpoints/${EXP_NAME} -s model.use_anything False -s model.act_ckpt False -s kmeans_input True -s training.reset_training_state False -s metrics_only False -s training.data_repeat 1 -s training.perceptual_loss_weight 0.0 -s num_frames ${FOLD_SIZE} -s training.view_selector.type kmeans \
-        -s sp_size 1 -s model.gaussians.usage_threshold 0.001 -s training.torch_compile False --load ${CKPT_PATH}
+        -s sp_size 1 -s model.gaussians.usage_threshold 0.001 -s training.torch_compile True --load ${CKPT_PATH}

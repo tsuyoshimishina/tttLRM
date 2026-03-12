@@ -20,6 +20,7 @@ from utils.ddp_utils import unwrap_model
 from utils import sp_support
 import numpy as np
 import random
+import time
 
 init_process_group(backend="nccl")
 ddp_rank = int(os.environ["RANK"])
@@ -157,12 +158,30 @@ if config.inference or config.get("evaluation", False):
         eval_iters = int(math.ceil(eval_data_len / sp_support.get_sp_replicas()))
 
         for i, batch in enumerate(eval_dataloader):
+            torch.cuda.synchronize()
+            t_start = time.perf_counter()
+
             batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+
+            torch.cuda.synchronize()
+            t_data = time.perf_counter()
+
             print(f"Data loaded {i}, rank {dist.get_rank()}, sp_rank {sp_support.get_sp_rank()}, ")
             result = unwrap_model(model)(batch)
 
+            torch.cuda.synchronize()
+            t_forward = time.perf_counter()
+
             if sp_support.get_sp_rank() == 0:
                 model.module.save_evaluations(config.evaluation_out_dir, result, batch)
+
+            torch.cuda.synchronize()
+            t_save = time.perf_counter()
+
+            if ddp_rank == 0:
+                vram_peak = torch.cuda.max_memory_allocated() / (1024 ** 3)
+                print(f"[Timing] batch={i}  data_transfer={t_data - t_start:.2f}s  forward={t_forward - t_data:.2f}s  save_eval={t_save - t_forward:.2f}s  total={t_save - t_start:.2f}s  vram_peak={vram_peak:.2f}GB")
+
             torch.distributed.barrier()
 
             if i >= eval_iters - 1:

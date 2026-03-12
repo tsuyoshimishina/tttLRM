@@ -251,6 +251,11 @@ class tttLRM(nn.Module):
         fxfycxcy (torch.tensor): [b, v, 4]
         c2w (torch.tensor): [b, v, 4, 4]
         """
+        _timing = not self.training
+        if _timing:
+            torch.cuda.synchronize()
+            _t0 = time.perf_counter()
+
         input, target, virtual = prepare_input_target(data_batch, self.config)
         num_input_views = input.image.size(1)
         num_virtual_views = virtual.c2w.size(1) 
@@ -295,12 +300,20 @@ class tttLRM(nn.Module):
         posed_query = torch.cat([virtual['ray_o'], virtual['ray_d'], torch.cross(virtual['ray_o'], virtual['ray_d'], dim=2), virtual['image'] * 2.0 - 1.0], dim=2)
         model_input = torch.cat((posed_input, posed_query), dim=1)
 
+        if _timing:
+            torch.cuda.synchronize()
+            _t1 = time.perf_counter()
+
         # Start Model Forward
         image_tokens = self.tokenizer(model_input)  # [b*v, n_patches, d]
         _, N_patches, D = image_tokens.shape
         image_tokens = image_tokens.reshape(-1, (num_input_views + num_virtual_views) * N_patches, D)
         image_tokens = self.input_layernorm(image_tokens)
           
+        if _timing:
+            torch.cuda.synchronize()
+            _t2 = time.perf_counter()
+
         num_img_tokens = H * W // (self.patch_size**2)
         num_input_tokens = num_input_views * num_img_tokens
         num_target_tokens = num_virtual_views * num_img_tokens
@@ -327,6 +340,10 @@ class tttLRM(nn.Module):
         for i in range(self.num_layers):
             image_tokens, _ = self.blocks[i](image_tokens, shape_info=info)
         
+        if _timing:
+            torch.cuda.synchronize()
+            _t3 = time.perf_counter()
+
         input_tokens, query_tokens = image_tokens.split([num_input_views * N_patches, num_target_tokens], dim=1)     
         gaussians = self.decoder(query_tokens)
         gaussians = gaussians.reshape(B, -1, (3 + (self.config.model.gaussians.sh_degree + 1) ** 2 * 3 + 3 + 4 + 1))
@@ -354,6 +371,10 @@ class tttLRM(nn.Module):
         rotation = sp_support.sp_all_gather(rotation, gather_dim=1, length=num_local_gaussians * sp_support.get_sp_world_size())
         opacity = sp_support.sp_all_gather(opacity, gather_dim=1, length=num_local_gaussians * sp_support.get_sp_world_size())
      
+        if _timing:
+            torch.cuda.synchronize()
+            _t4 = time.perf_counter()
+
         # Gaussian Pruning
         threshold = None
         keep_idx = None
@@ -383,7 +404,6 @@ class tttLRM(nn.Module):
         # Render at target camera pose
         render = None
         if target is not None:
-            render_start = time.time()
             render = self.renderer(xyz, features, scaling, rotation, opacity, target['c2w'], target['fxfycxcy'], W, H, self.config.model.gaussians.sh_degree, self.config.model.get('near_plane', 0.1), self.config.model.get('far_plane', 10000000000.0))
             if not self.training:
                 render["render"] = sp_support.sp_all_gather(render["render"], gather_dim=1, length=new_shape[1])
@@ -393,6 +413,11 @@ class tttLRM(nn.Module):
             # Compute Loss 
             loss_metrics = self.compute_loss(render["render"], target['image'], xyz_local, input_c2w_local, opacity_local, disp_rel=disp_rel if self.config.training.depth_loss_weight > 0.0 else None)      
      
+        if _timing:
+            torch.cuda.synchronize()
+            _t5 = time.perf_counter()
+            print(f"[Timing:forward] prepare={_t1-_t0:.2f}s  tokenize={_t2-_t1:.2f}s  transformer={_t3-_t2:.2f}s  decode={_t4-_t3:.2f}s  render={_t5-_t4:.2f}s  total={_t5-_t0:.2f}s")
+
         # for logging
         if loss_metrics is not None:
             loss_metrics.gaussian_usage = gaussian_usage
