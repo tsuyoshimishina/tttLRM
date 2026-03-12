@@ -465,7 +465,7 @@ def main():
     # Create data path JSON
     data_path_json = args.data_path_json
     if data_path_json is None:
-        data_path_json = str(output_dir.parent / "colmap_data_path.json")
+        data_path_json = str(output_dir / "colmap_data_path.json")
     create_data_path_json(output_dir, data_path_json)
 
     print("Done!")

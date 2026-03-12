@@ -1,3 +1,6 @@
+import sys
+sys.setrecursionlimit(10000)
+
 import math
 from ast import literal_eval
 import argparse
@@ -127,7 +130,8 @@ model_overview = model.get_overview()
 checkpoint = torch.load(args.load, map_location="cpu")
 model.load_state_dict(checkpoint['model'], strict=False)
 model = DDP(model, device_ids=[ddp_local_rank])
-model = torch.compile(model)  # pytorch 2.0 feature
+if config.training.get("torch_compile", False):
+    model = torch.compile(model)  # pytorch 2.0 feature
 
 if config.inference or config.get("evaluation", False):
 
