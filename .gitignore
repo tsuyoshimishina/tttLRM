@@ -8,3 +8,5 @@ checkpoints/
 **/**DS_Store
 evaluation/
 data_example/
+
+build.log

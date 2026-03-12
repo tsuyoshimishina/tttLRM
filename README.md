@@ -4,6 +4,15 @@
 <a href='https://huggingface.co/chenwang/tttLRM'><img src='https://img.shields.io/badge/Hugging_Face-Model-F8D44E.svg?logo=huggingface' alt='Model'></a>
 
 ## 📦 Installation
+
+### Quick setup (recommended)
+```bash
+./setup.sh          # creates conda env 'tttlrm' and installs everything
+./setup.sh --check  # verify installation
+conda activate tttlrm
+```
+
+### Manual setup
 ```bash
 python3.10 -m venv tttlrm
 source tttlrm/bin/activate

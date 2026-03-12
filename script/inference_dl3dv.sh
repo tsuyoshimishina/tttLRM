@@ -1,13 +1,14 @@
 export NCCL_DEBUG=WARN
 PORT=29501
 
+NUM_GPUS=${NUM_GPUS:-1}
 DATAPATH=./data_example/dl3dv_sample_data_path.json
 EXP_NAME=dl3dv_full_eval
 CKPT_PATH=./checkpoints/dl3dv_full.pt
 NUM_VIEWS=32 # 16, 64
 CONFIG=./configs/dl3dv_full.yaml
 
-torchrun --nproc_per_node 4 --nnodes 1 \
+torchrun --nproc_per_node ${NUM_GPUS} --nnodes 1 \
         --rdzv_id 18638 --rdzv_backend c10d \
         --rdzv_endpoint localhost:${PORT}  \
         inference.py ${CONFIG} \
